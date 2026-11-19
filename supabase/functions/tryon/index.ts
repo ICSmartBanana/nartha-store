@@ -85,7 +85,10 @@ Deno.serve(async (req) => {
   const refUrls = ((product.images ?? []) as string[]).slice(0, 2).map((u) => u.replace(/^\/\//, "https://"));
   if (!refUrls.length) return json({ error: "no_product_image" }, 422);
 
-  const hash = await sha256(new Uint8Array([...photo, ...new TextEncoder().encode("|" + body.handle + "|v3")]).buffer);
+  const tag = new TextEncoder().encode("|" + body.handle + "|v3");
+  const hashInput = new Uint8Array(photo.byteLength + tag.byteLength);
+  hashInput.set(photo, 0); hashInput.set(tag, photo.byteLength);
+  const hash = await sha256(hashInput.buffer);
 
   // Same photo + same saree = free repeat.
   const { data: cached } = await admin.from("tryons").select("result_path").eq("user_id", user.id)
