@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>NARTHA — Handcrafted cotton sarees</title>
+<meta name="description" content="Handcrafted pure cotton sarees for every working day. Kalamkari, Chettinad, Malai and Sungudi weaves from NARTHA.">
+<meta name="theme-color" content="#F6F0E6">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..700;1,9..144,300..600&family=Manrope:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<header class="top">
+  <button class="icon-btn menu-btn" aria-label="Menu" data-open-menu>
+    <svg viewBox="0 0 24 24"><path d="M3 7h18M3 12h18M3 17h12"/></svg>
+  </button>
+  <a href="#/" class="brand" aria-label="NARTHA home">NARTHA</a>
+  <nav class="nav" id="nav"></nav>
+  <div class="top-actions">
+    <button class="icon-btn" aria-label="Search" data-open-search>
+      <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="m20 20-4.2-4.2"/></svg>
+    </button>
+    <button class="icon-btn bag-btn" aria-label="Bag" data-open-bag>
+      <svg viewBox="0 0 24 24"><path d="M5 8h14l-1 12H6L5 8Z"/><path d="M9 8V6a3 3 0 0 1 6 0v2"/></svg>
+      <span class="bag-count" id="bagCount" hidden>0</span>
+    </button>
+  </div>
+</header>
+
+<div class="search-bar" id="searchBar" hidden>
+  <input id="searchInput" type="search" placeholder="Search sarees, weaves, colours…" autocomplete="off">
+</div>
+
+<main id="app" tabindex="-1"></main>
+
+<footer class="foot">
+  <div class="foot-brand">NARTHA</div>
+  <p>Pure cotton, handcrafted by weavers and block printers across South India. Made for the working day.</p>
+  <div class="foot-links">
+    <a href="https://www.nartha.in/policies/shipping-policy" target="_blank" rel="noopener">Shipping</a>
+    <a href="https://www.nartha.in/policies/refund-policy" target="_blank" rel="noopener">Returns</a>
+    <a href="mailto:info@nartha.in">info@nartha.in</a>
+  </div>
+  <small>Secure checkout by Shopify · Prices in ₹ INR</small>
+</footer>
+
+<!-- Menu (mobile) -->
+<aside class="sheet left" id="menuSheet" aria-hidden="true">
+  <div class="sheet-head"><span class="brand small">NARTHA</span><button class="icon-btn" data-close aria-label="Close">✕</button></div>
+  <div id="menuLinks" class="menu-links"></div>
+</aside>
+
+<!-- Bag -->
+<aside class="sheet right" id="bagSheet" aria-hidden="true">
+  <div class="sheet-head"><h3>Your bag</h3><button class="icon-btn" data-close aria-label="Close">✕</button></div>
+  <div id="bagBody" class="bag-body"></div>
+</aside>
+
+<!-- Try-on -->
+<div class="modal" id="tryon" aria-hidden="true" role="dialog" aria-label="Virtual try-on">
+  <div class="modal-card">
+    <button class="icon-btn modal-x" data-close aria-label="Close">✕</button>
+    <div id="tryonBody"></div>
+  </div>
+</div>
+
+<div class="scrim" id="scrim"></div>
+<div class="toast" id="toast" role="status"></div>
+
+<script type="module" src="app.js"></script>
+</body>
+</html>
