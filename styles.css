@@ -477,7 +477,7 @@ svg.loom .shuttle-eye{fill:var(--turmeric);stroke:none}
 @media (max-width:520px){
   .try-pill span{display:none}
   .try-pill{width:36px;height:36px;padding:0;display:grid;place-items:center;font-size:15px;margin-right:0}
-  .brand{font-size:19px;letter-spacing:.24em}
+  .brand{font-size:19px;letter-spacing:.24em;position:static;transform:none}
   .top{gap:6px}
   .top-actions .icon-btn{width:36px}
 }
