@@ -29,7 +29,7 @@ function prompt(title: string, type: string) {
     `Image 2 shows a model wearing the saree — use it only for how the saree is worn and its overall colours; never copy the model, her face or her jewellery. ` +
     `If an image 3 is given, it is the fabric detail collage and is the exact reference for the textile: its panels show the saree body pattern, the pallu design and the blouse fabric (identify which panel is which). ` +
     `Dress the customer in this saree in Nivi style: the body and pleats use exactly the body pattern with its border, the pallu shows exactly the pallu design, and the short-sleeve blouse is stitched from exactly the blouse fabric. ` +
-    `Match motif shapes, scale, spacing and colours precisely; do not invent or simplify patterns. ` +
+    `Match motif shapes, scale, spacing and colours precisely; do not invent or simplify patterns. Where image 2 and the collage disagree (for example the blouse), always follow the collage. ` +
     `Pleats tucked at the waist, slightly uneven and softly overlapping the way real handloom cotton falls, with small natural creases and a little volume at the hem — not stiff or perfectly symmetrical. ` +
     `The pallu goes over her left shoulder and is then brought forward and draped loosely over her left forearm, hanging in front of her body at her side so the full pallu design is clearly visible from the front. ` +
     `Reproduce the saree's exact colours, motifs, weave, border and pallu design faithfully; do not invent new patterns. ` +
