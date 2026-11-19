@@ -32,6 +32,7 @@ def tidy(t):
     if len(parts) == 2 and re.search(r"saree", parts[1], re.I): t = parts[0]
     t = re.sub(r"[\u2010-\u2015\-\s\u00a8\u02dc~]+$", "", t).strip()
     t = re.sub(r"\s*[–-]\s*(feather grace|feather|butterfly|fiesta)( collection)?$", "", t, flags=re.I)
+    t = re.sub(r"[\u0300-\u036f\u00a8]+$", "", t).strip()
     if t.isupper(): t = t.title()
     return t
 def text(body):
@@ -59,5 +60,36 @@ for p in products("/products.json"):
 data = {"store": STORE, "collections": [{"handle": c["handle"], "title": c["title"],
         "image": (c.get("image") or {}).get("src"), "count": sum(1 for i in items if c["handle"] in i["collections"])} for c in cols],
         "products": items}
+# ---- policies (rendered on the site, refreshed nightly) ----
+def page(path):
+    req = urllib.request.Request(STORE + path, headers={"User-Agent": "nartha-store-sync"})
+    return urllib.request.urlopen(req, timeout=30).read().decode("utf-8", "ignore")
+def safe_html(h):
+    h = re.sub(r"<(script|style|iframe)[^>]*>.*?</\1>", "", h, flags=re.S | re.I)
+    def tag(m):
+        close, name, attrs = m.group(1), m.group(2).lower(), m.group(3) or ""
+        if name not in {"p","h1","h2","h3","h4","ul","ol","li","strong","b","em","i","a","br","table","tr","td","th","tbody","thead"}: return ""
+        if name == "a" and not close:
+            href = re.search(r'href="([^"]+)"', attrs)
+            u = href.group(1) if href else "#"
+            if u.startswith("/"): u = STORE + u
+            if not re.match(r"^(https?:|mailto:|tel:)", u): u = "#"
+            return f'<a href="{u}" target="_blank" rel="noopener">'
+        return f"<{close}{name}>"
+    h = re.sub(r"<(/?)([a-zA-Z0-9]+)([^>]*)>", tag, h)
+    return re.sub(r"\s+", " ", h).strip()
+POLICIES = [("privacy-policy","Privacy policy"),("refund-policy","Refund policy"),("shipping-policy","Shipping policy"),
+            ("terms-of-service","Terms of service"),("contact-information","Contact information"),("legal-notice","Legal notice")]
+pol = {}
+for handle, title in POLICIES:
+    try:
+        raw = page(f"/policies/{handle}")
+        m = re.search(r'<div class="shopify-policy__body">(.*?)</div>\s*</div>', raw, re.S)
+        if m: pol[handle] = {"title": title, "html": safe_html(m.group(1))}
+    except Exception as e:
+        print("policy failed", handle, e)
+json.dump(pol, open("data/policies.json", "w"), ensure_ascii=False)
+print(len(pol), "policies")
+
 json.dump(data, open("data/catalog.json", "w"), ensure_ascii=False, separators=(",", ":"))
 print(len(items), "products;", [(c["title"], c["count"]) for c in data["collections"]], sum(i["available"] for i in items), "in stock")
