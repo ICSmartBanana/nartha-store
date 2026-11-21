@@ -85,7 +85,7 @@ Deno.serve(async (req) => {
   const refUrls = ((product.images ?? []) as string[]).slice(0, 2).map((u) => u.replace(/^\/\//, "https://"));
   if (!refUrls.length) return json({ error: "no_product_image" }, 422);
 
-  const tag = new TextEncoder().encode("|" + body.handle + "|v3");
+  const tag = new TextEncoder().encode("|" + body.handle + "|v4");
   const hashInput = new Uint8Array(photo.byteLength + tag.byteLength);
   hashInput.set(photo, 0); hashInput.set(tag, photo.byteLength);
   const hash = await sha256(hashInput.buffer);
@@ -103,13 +103,14 @@ Deno.serve(async (req) => {
 
   try {
     const refs = await Promise.all(refUrls.map(async (u) =>
-      (await fetch(u.includes("?") ? u + "&width=1024" : u + "?width=1024")).blob()));
+      (await fetch(u.includes("?") ? u + "&width=2048" : u + "?width=2048")).blob()));
     const form = new FormData();
     form.append("model", MODEL);
     form.append("prompt", prompt(product.title, product.type));
     form.append("image[]", new Blob([photo], { type: "image/jpeg" }), "customer.jpg");
     refs.forEach((b, i) => form.append("image[]", b, i === 0 ? "saree-worn.jpg" : "saree-detail.jpg"));
-    form.append("size", "1024x1536");
+    // "auto" keeps the customer photo's shape; a forced 2:3 canvas made the model re-frame and redraw the face.
+    form.append("size", "auto");
     form.append("quality", QUALITY);
     const ai = await fetch("https://api.openai.com/v1/images/edits", {
       method: "POST", headers: { Authorization: `Bearer ${OPENAI_KEY}` }, body: form,
