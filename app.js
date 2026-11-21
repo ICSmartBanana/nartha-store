@@ -60,9 +60,11 @@ function renderBagCount() {
   const n = bag.reduce((a, b) => a + b.qty, 0);
   const el = $("#bagCount"); el.textContent = n; el.hidden = !n; pop(el);
 }
+// storefront=true makes Shopify fill the nartha.in cart and open the cart page instead of
+// Shopify's native checkout, so customers get the same Shiprocket checkout as on nartha.in.
 function checkoutUrl(items) {
-  const parts = items.map((b) => byHandle.get(b.handle)).filter(Boolean).map((p, i) => `${p.variant}:${items[i].qty}`);
-  return `${CONFIG.store}/cart/${parts.join(",")}?ref=nartha-store`;
+  const parts = items.map((b) => [byHandle.get(b.handle), b.qty]).filter(([p]) => p).map(([p, q]) => `${p.variant}:${q}`);
+  return `${CONFIG.store}/cart/${parts.join(",")}?storefront=true&ref=nartha-store`;
 }
 function renderBag() {
   bag = bag.filter((b) => byHandle.get(b.handle)?.available);
@@ -86,7 +88,7 @@ function renderBag() {
     <div class="row"><span>Subtotal</span><b>${inr(total)}</b></div>
     <small>Free shipping across India. Taxes and any charges are shown at checkout.</small>
     <a class="btn red block" href="${checkoutUrl(bag)}" data-cursor="Checkout">Checkout securely</a>
-    <div class="secure">🔒 Checkout is completed on nartha.in by Shopify</div></div>`;
+    <div class="secure">🔒 Checkout is completed securely on nartha.in</div></div>`;
 }
 $("#bagBody").addEventListener("click", (e) => {
   const q = e.target.closest("[data-q]"), rm = e.target.closest("[data-rm]");

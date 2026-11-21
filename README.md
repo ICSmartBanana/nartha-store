@@ -7,7 +7,7 @@ A custom front end for [nartha.in](https://www.nartha.in). Products come from th
 |---|---|---|
 | Storefront (this repo) | GitHub Pages | Static HTML/CSS/JS, hash routes: `#/`, `#/shop`, `#/c/<collection>`, `#/p/<product>` |
 | Catalogue | `data/catalog.json` | Built by `scripts/sync.py` from the store's public feed; refreshed nightly by GitHub Actions (`Sync catalogue`), or run it manually from the Actions tab |
-| Bag & checkout | Shopify | Bag lives in the browser; *Checkout* sends the customer to `nartha.in/cart/<variant>:<qty>` (Shopify's own checkout) |
+| Bag & checkout | Shopify | Bag lives in the browser; *Checkout* sends the customer to `nartha.in/cart/<variant>:<qty>?storefront=true`, which fills the nartha.in cart and opens the cart page, where the store's Shiprocket checkout takes over (same as buying on nartha.in) |
 | Try-on | Supabase project `nartha-store` | Email sign-in + edge function `tryon` that holds the image-API key |
 
 ## Try-on limits (enforced on the server)
