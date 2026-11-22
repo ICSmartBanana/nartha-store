@@ -494,3 +494,25 @@ svg.loom .shuttle-eye{fill:var(--turmeric);stroke:none}
   .top{gap:6px}
   .top-actions .icon-btn{width:36px}
 }
+
+/* share your look + admin queue */
+.cc.share .consent{margin-bottom:10px}
+.cc.share .btn{margin-top:4px}
+.mysh{margin-top:14px}
+.mysh p{margin:6px 0;font-size:13px;color:var(--ink-2)}
+.mysh a{text-decoration:underline}
+.admin{padding-top:24px;padding-bottom:60px}
+.adm-tabs{display:flex;flex-wrap:wrap;gap:8px;margin:18px 0}
+.adm-tabs button{border:1px solid var(--line);background:var(--card);border-radius:999px;padding:8px 14px;font:inherit;font-size:13px;color:var(--ink-2);cursor:pointer}
+.adm-tabs button.on{background:var(--ink);color:var(--paper);border-color:var(--ink)}
+.adm-tabs span{opacity:.7;margin-left:4px}
+.adm-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:16px}
+.adm-card{background:var(--card);border:1px solid var(--line);border-radius:var(--r);overflow:hidden;display:flex;flex-direction:column}
+.adm-card img{width:100%;aspect-ratio:2/3;object-fit:cover;display:block;background:var(--paper-2)}
+.adm-meta{padding:12px;display:flex;flex-direction:column;gap:4px}
+.adm-meta small{font-size:12px;color:var(--muted)}
+.adm-meta small a{text-decoration:underline;color:var(--ink-2)}
+.adm-meta .warn{color:var(--madder)}
+.adm-meta .row{display:flex;gap:8px;margin-top:8px}
+.adm-meta .row .btn{flex:1;padding:10px 12px}
+.adm-form{max-width:380px}

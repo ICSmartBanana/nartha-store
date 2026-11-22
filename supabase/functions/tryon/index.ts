@@ -3,6 +3,7 @@
 //  - WEEKLY_LIMIT try-ons per user per rolling 7 days (failed ones don't count)
 //  - DAILY_CAP try-ons across the whole site per day (budget kill switch)
 //  - same photo + same saree returns the saved result for free
+//  - sharing a look (shares table) adds bonus try-ons for 7 days
 import { createClient } from "npm:@supabase/supabase-js@2";
 
 const STORE = Deno.env.get("STORE_URL") ?? "https://www.nartha.in";
@@ -59,6 +60,11 @@ Deno.serve(async (req) => {
 
   const body = await req.json().catch(() => null) as { action?: string; photo?: string; handle?: string } | null;
 
+  // Extra try-ons earned by sharing a look (see shares table), valid for 7 days.
+  const { count: bonus } = await admin.from("shares").select("id", { count: "exact", head: true })
+    .eq("user_id", user.id).eq("bonus_granted", true).gt("created_at", new Date(Date.now() - 7 * 864e5).toISOString());
+  const limit = WEEKLY_LIMIT + (bonus ?? 0);
+
   // Quota check only
   if (body?.action === "status") {
     const { data } = await admin.from("tryons").select("created_at").eq("user_id", user.id)
@@ -66,7 +72,7 @@ Deno.serve(async (req) => {
       .order("created_at", { ascending: true });
     const used = data?.length ?? 0;
     const reset = data?.[0] ? new Date(new Date(data[0].created_at).getTime() + 7 * 864e5).toISOString() : null;
-    return json({ limit: WEEKLY_LIMIT, used, remaining: Math.max(0, WEEKLY_LIMIT - used), reset_at: reset, enabled: TRYON_ENABLED && !!OPENAI_KEY });
+    return json({ limit, bonus: bonus ?? 0, used, remaining: Math.max(0, limit - used), reset_at: reset, enabled: TRYON_ENABLED && !!OPENAI_KEY });
   }
 
   if (!TRYON_ENABLED) return json({ error: "paused" }, 503);
@@ -91,15 +97,15 @@ Deno.serve(async (req) => {
   const hash = await sha256(hashInput.buffer);
 
   // Same photo + same saree = free repeat.
-  const { data: cached } = await admin.from("tryons").select("result_path").eq("user_id", user.id)
+  const { data: cached } = await admin.from("tryons").select("id,result_path").eq("user_id", user.id)
     .eq("input_hash", hash).eq("status", "done").limit(1).maybeSingle();
-  if (cached?.result_path) return json({ image: await signed(cached.result_path), cached: true });
+  if (cached?.result_path) return json({ id: cached.id, image: await signed(cached.result_path), cached: true });
 
   const { data: r, error: rErr } = await admin.rpc("reserve_tryon", {
-    p_user: user.id, p_handle: body.handle, p_hash: hash, p_weekly: WEEKLY_LIMIT, p_daily: DAILY_CAP,
+    p_user: user.id, p_handle: body.handle, p_hash: hash, p_weekly: limit, p_daily: DAILY_CAP,
   }).single();
   if (rErr) return json({ error: "server" }, 500);
-  if (!r.ok) return json({ error: r.reason, reset_at: r.reset_at, limit: WEEKLY_LIMIT }, 429);
+  if (!r.ok) return json({ error: r.reason, reset_at: r.reset_at, limit }, 429);
 
   try {
     const refs = await Promise.all(refUrls.map(async (u) =>
@@ -123,7 +129,7 @@ Deno.serve(async (req) => {
     const bytes = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
     await admin.storage.from("tryons").upload(path, bytes, { contentType: "image/png" });
     await admin.from("tryons").update({ status: "done", result_path: path }).eq("id", r.tryon_id);
-    return json({ image: await signed(path), remaining: Math.max(0, WEEKLY_LIMIT - r.used), reset_at: r.reset_at });
+    return json({ id: r.tryon_id, image: await signed(path), limit, remaining: Math.max(0, limit - r.used), reset_at: r.reset_at });
   } catch (e) {
     // Failed attempts are refunded (they don't count toward the limit).
     await admin.from("tryons").update({ status: "failed", error: String(e).slice(0, 500) }).eq("id", r.tryon_id);

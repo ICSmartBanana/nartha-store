@@ -408,7 +408,8 @@ const TRYON_PRIVACY = {
   title: "Try-on & photo privacy",
   html: `<p>This note explains how the virtual try-on on this website handles your photo. It adds to our main <a href="#/policy/privacy-policy">Privacy policy</a>.</p>
   <h3>What we collect</h3><ul><li>Your email address, to sign you in with a one-time code.</li><li>Your mobile number, only if you choose to give it.</li><li>Whether you want updates from us, with the date and the exact wording you agreed to.</li><li>The photo you choose, resized to at most 1024 pixels on your device before it is sent.</li><li>A record of each try-on (time, saree, status) so we can apply the weekly limit.</li></ul>
-  <h3>How it's used</h3><ul><li>Your photo and the saree's product photos are sent securely to our image-generation provider (OpenAI) only to create your try-on image.</li><li>The resulting image is stored privately and shown only to you through a time-limited link.</li><li>We don't use your photo for advertising, and we don't share it with anyone else.</li><li>If you tick the updates box, we send new arrivals and offers to your WhatsApp (if you gave a number) and email. If you don't tick it, we use your contact details only for your account and orders. We never sell them.</li></ul>
+  <h3>How it's used</h3><ul><li>Your photo and the saree's product photos are sent securely to our image-generation provider (OpenAI) only to create your try-on image.</li><li>The resulting image is stored privately and shown only to you through a time-limited link.</li><li>We don't use your photo for advertising, and we don't share it with anyone else. Your try-on image is only posted publicly if you choose "Share my look" (see below).</li><li>If you tick the updates box, we send new arrivals and offers to your WhatsApp (if you gave a number) and email. If you don't tick it, we use your contact details only for your account and orders. We never sell them.</li></ul>
+  <h3>Sharing your look (optional)</h3><ul><li>After a try-on you can choose to let NARTHA post that try-on image on its social media pages (such as Instagram, Facebook and YouTube). Your original photo, name and contact details are never posted.</li><li>You must tick both boxes: that you agree, and that you are the person in the photo and 18 or older. We store the wording you agreed to and when.</li><li>Our team checks every image before it is posted.</li><li>Sharing adds 1 extra try-on (at most once a day), usable for 7 days.</li><li>Remove a shared look anytime from "Your shared looks" in the try-on window, or email <a href="mailto:info@nartha.in">info@nartha.in</a>. We then delete it from our pages.</li></ul>
   <h3>Your choices</h3><ul><li>Don't upload photos of other people without their permission, or of anyone under 18.</li><li>Turn updates off anytime with "Turn off" in the try-on window, by replying STOP on WhatsApp, or by emailing <a href="mailto:info@nartha.in">info@nartha.in</a>.</li><li>To delete your try-on images and account data, email <a href="mailto:info@nartha.in">info@nartha.in</a> from the address you signed in with.</li></ul>
   <p>Try-on images are AI previews. Handcrafted fabric can vary slightly in colour and print placement.</p>`,
 };
@@ -439,6 +440,7 @@ function render() {
   else if (a === "try-on") { app.innerHTML = tryOnPage(); title = "Virtual try-on — NARTHA"; }
   else if (a === "about") { app.innerHTML = about(); title = "About NARTHA"; }
   else if (a === "contact") { app.innerHTML = contact(); title = "Contact — NARTHA"; }
+  else if (a === "admin") { app.innerHTML = `<div class="wrap admin" id="adm"><p class="hint">Loading…</p></div>`; loadAdmin(); title = "Shared looks — NARTHA"; }
   else if (a === "policy") { app.innerHTML = policy(b); title = `${(POLICIES[b]?.title || TRYON_PRIVACY.title)} — NARTHA`; }
   else { app.innerHTML = home(); heroSlideshow($("#hero")); }
   document.title = title;
@@ -543,6 +545,77 @@ function renderContactCard(err = "") {
   $("#ccOn") && ($("#ccOn").onclick = (e) => { e.preventDefault(); box.dataset.edit = "1"; renderContactCard(); });
 }
 
+/* ---------- share your look (optional) ----------
+   The customer can let NARTHA post a try-on result on its social pages. Both boxes must be ticked; the exact
+   wording is stored with the share. Sharing adds share_config.daily_bonus try-ons per day (valid 7 days).
+   Nothing goes public until it's approved on #/admin; the "Publish shared try-ons" Action does the posting. */
+const SHARE_CONSENT_TEXT = "NARTHA may post this try-on image (not my original photo) on its social media pages, such as Instagram, Facebook and YouTube, without my name. I can ask for it to be removed anytime.";
+const SHARE_ATTEST_TEXT = "I'm the person in this photo and I'm 18 or older.";
+const SHARE_STATUS = { pending: "waiting for review", approved: "approved, going up soon", published: "posted", rejected: "not posted", withdrawn: "removed" };
+let shareCfg = null;
+async function shareSettings() {
+  if (shareCfg) return shareCfg;
+  const { data, error } = await (await getSb()).rpc("share_settings");
+  if (!error) shareCfg = data;
+  return shareCfg;
+}
+async function withdrawShare(id) {
+  const { error } = await (await getSb()).rpc("withdraw_share", { p_id: id });
+  if (error) throw error;
+}
+async function renderShareBox(tryonId, err = "") {
+  const box = $("#share"); if (!box || !tryonId) return;
+  const cfg = await shareSettings().catch(() => null);
+  if (!cfg?.enabled) { box.innerHTML = ""; return; }
+  const { data: s } = await (await getSb()).from("shares").select("id,status").eq("tryon_id", tryonId).maybeSingle();
+  if (s && s.status !== "withdrawn") {
+    box.innerHTML = `<p class="note">Shared with NARTHA · ${esc(SHARE_STATUS[s.status] || s.status)} · <a href="#" id="shRemove">Remove</a></p>`;
+    $("#shRemove").onclick = async (e) => {
+      e.preventDefault();
+      try { await withdrawShare(s.id); toast("Removed. We'll take it down if it was posted."); renderShareBox(tryonId); }
+      catch { toast("Couldn't remove it. Please try again."); }
+    };
+    return;
+  }
+  const bonus = cfg.bonus_left_today > 0;
+  box.innerHTML = `<div class="cc share">${err ? `<div class="err">${esc(err)}</div>` : ""}
+    <b>${bonus ? "Share your look, get 1 extra try-on" : "Share your look"}</b>
+    <p class="hint">${bonus ? "Let us feature this try-on on NARTHA's pages and we'll add 1 try-on to your week right away." : "You've already earned today's extra try-on, but you can still share this look."} We check every post before it goes up.</p>
+    <label class="consent"><input type="checkbox" id="shOk"><span>${esc(SHARE_CONSENT_TEXT)} <a href="#/policy/try-on-privacy" target="_blank" rel="noopener">Details</a></span></label>
+    <label class="consent"><input type="checkbox" id="shMe"><span>${esc(SHARE_ATTEST_TEXT)}</span></label>
+    <button class="btn dark block" id="shGo" disabled>Share my look</button></div>`;
+  const upd = () => { $("#shGo").disabled = !($("#shOk").checked && $("#shMe").checked); };
+  $("#shOk").onchange = upd; $("#shMe").onchange = upd;
+  $("#shGo").onclick = async () => {
+    $("#shGo").disabled = true;
+    const { data, error } = await (await getSb()).rpc("create_share", {
+      p_tryon: tryonId, p_consent_text: `${SHARE_CONSENT_TEXT} | ${SHARE_ATTEST_TEXT}`, p_attested: true, p_user_agent: navigator.userAgent,
+    });
+    if (error) return renderShareBox(tryonId, "We couldn't share that. Please try again.");
+    shareCfg = null;
+    if (data?.bonus_granted && T.quota) {
+      T.quota = { ...T.quota, limit: T.quota.limit + 1, remaining: T.quota.remaining + 1 };
+      const q = $("#tryonBody .quota"); if (q) q.outerHTML = quotaDots(T.quota);
+      toast("Thank you! 1 extra try-on added");
+    } else toast("Thank you for sharing!");
+    renderShareBox(tryonId);
+  };
+}
+// "Your shared looks" list on the photo step, so a share can be removed any time.
+async function renderMyShares() {
+  const box = $("#myShares"); if (!box) return;
+  const { data } = await (await getSb()).from("shares").select("id,handle,status").neq("status", "withdrawn")
+    .order("created_at", { ascending: false }).limit(20);
+  if (!data?.length) { box.innerHTML = ""; return; }
+  box.innerHTML = `<details class="acc mysh"><summary>Your shared looks (${data.length})</summary><div>
+    ${data.map((s) => `<p>${esc(byHandle.get(s.handle)?.title || "Saree")} · ${esc(SHARE_STATUS[s.status] || s.status)} · <a href="#" data-unshare="${s.id}">Remove</a></p>`).join("")}</div></details>`;
+  box.querySelectorAll("[data-unshare]").forEach((a) => a.onclick = async (e) => {
+    e.preventDefault();
+    try { await withdrawShare(a.dataset.unshare); toast("Removed. We'll take it down if it was posted."); renderMyShares(); }
+    catch { toast("Couldn't remove it. Please try again."); }
+  });
+}
+
 async function fn(payload) {
   const { data: { session } } = await (await getSb()).auth.getSession();
   const r = await fetch(`${CONFIG.supabaseUrl}/functions/v1/tryon`, {
@@ -629,8 +702,9 @@ async function stepPhoto(err = "") {
         <div class="row"><label class="btn dark"><input type="file" accept="image/*" capture="environment" hidden id="cam">Take photo</label>
         <label class="btn line"><input type="file" accept="image/*" hidden id="file">Upload</label></div></div>`}
     <p class="note">Results are AI previews; actual colours and drape can vary slightly. Your photo is used only to make your try-on.</p>
-    <div id="cc"></div>`;
+    <div id="cc"></div><div id="myShares"></div>`;
   loadContact().then(() => renderContactCard()).catch(() => {});
+  renderMyShares().catch(() => {});
   const pick = async (e) => {
     const f = e.target.files?.[0]; if (!f) return;
     try { T.photo = await shrink(f); T.photoUrl = "data:image/jpeg;base64," + T.photo; stepPhoto(); }
@@ -665,11 +739,16 @@ async function generate() {
   if (status === 401) return stepSignIn("Please sign in again.");
   if (data.error === "weekly_limit") return stepLimit({ limit: data.limit, used: data.limit, remaining: 0, reset_at: data.reset_at });
   if (!data.image) return stepPhoto(MSG[data.error] || "Something went wrong. Please try again.");
-  if (typeof data.remaining === "number") T.quota = { ...T.quota, remaining: data.remaining, used: T.quota.limit - data.remaining };
+  if (typeof data.remaining === "number") {
+    const limit = data.limit ?? T.quota?.limit ?? CONFIG.weeklyLimit;
+    T.quota = { ...T.quota, limit, remaining: data.remaining, used: limit - data.remaining };
+  }
   tBody().innerHTML = `${header(p)}<div class="result"><img class="reveal-img" src="${data.image}" alt="You wearing ${esc(p.title)}">
     ${data.cached ? `<p class="note">You've tried this one before, so this didn't use a try-on.</p>` : quotaDots(T.quota)}
     <div class="row"><button class="btn red" data-add="${esc(p.handle)}">Add to bag</button><a class="btn line" href="${data.image}" download="nartha-${esc(p.handle)}.png" target="_blank" rel="noopener">Save image</a></div>
-    <p class="note">AI preview. Handcrafted fabric may vary slightly in colour and print placement.</p></div>`;
+    <p class="note">AI preview. Handcrafted fabric may vary slightly in colour and print placement.</p>
+    <div id="share"></div></div>`;
+  renderShareBox(data.id).catch(() => {});
   window.gsap?.fromTo(".reveal-img", { clipPath: "inset(0 0 100% 0)" }, { clipPath: "inset(0 0 0% 0)", duration: 1.2, ease: "power4.inOut" });
 }
 async function shrink(file, max = 1024) {
@@ -681,6 +760,96 @@ async function shrink(file, max = 1024) {
   return c.toDataURL("image/jpeg", 0.85).split(",")[1];
 }
 
+
+/* ---------- #/admin: approve shared looks ----------
+   Only emails listed in the share_admins table can see or act on anything (enforced in the database). */
+const ADM = { tab: "pending" };
+const ADM_TABS = [["pending", "To review"], ["approved", "Approved"], ["published", "Posted"], ["rejected", "Rejected"], ["withdrawn", "Removed by customer"]];
+const shareMediaUrl = (path) => `${CONFIG.supabaseUrl}/storage/v1/object/public/share-media/${path}`;
+async function loadAdmin(err = "") {
+  const box = $("#adm"); if (!box) return;
+  const sb = await getSb();
+  const { data: { session } } = await sb.auth.getSession();
+  if (!session) return adminSignIn(err);
+  const { data: isAdmin } = await sb.rpc("is_share_admin");
+  if (!isAdmin) {
+    box.innerHTML = `<h1 class="page-title">Shared looks</h1><p class="hint">This page is for the NARTHA team. You're signed in as ${esc(session.user.email)}.</p><button class="btn line" id="admOut">Sign out</button>`;
+    $("#admOut").onclick = async () => { await sb.auth.signOut(); loadAdmin(); };
+    return;
+  }
+  const [{ data: cfg }, { data: all }] = await Promise.all([
+    sb.from("share_config").select("*").maybeSingle(),
+    sb.from("shares").select("status"),
+  ]);
+  const counts = {}; (all || []).forEach((s) => { counts[s.status] = (counts[s.status] || 0) + 1; });
+  const { data: rows } = await sb.from("shares").select("*").eq("status", ADM.tab).order("created_at", { ascending: false }).limit(60);
+  const paths = (rows || []).map((r) => r.result_path);
+  const signedUrls = {};
+  if (paths.length) {
+    const { data: su } = await sb.storage.from("tryons").createSignedUrls(paths, 3600);
+    (su || []).forEach((x) => { if (x.signedUrl) signedUrls[x.path] = x.signedUrl; });
+  }
+  const ch = cfg?.channels?.length ? cfg.channels.join(", ") : "none yet (approved posts wait, ready to post by hand)";
+  box.innerHTML = `<h1 class="page-title">Shared looks</h1>
+    ${err ? `<div class="err">${esc(err)}</div>` : ""}
+    <p class="hint">Channels: <b>${esc(ch)}</b> · Auto-publish: <b>${cfg?.auto_publish ? "on" : "off"}</b> · Bonus: <b>${cfg?.daily_bonus ?? 0}</b> a day · Sharing ${cfg?.enabled ? "on" : "<b>off</b>"}. Change these in Supabase → Table editor → share_config.</p>
+    <div class="adm-tabs">${ADM_TABS.map(([k, t]) => `<button class="${k === ADM.tab ? "on" : ""}" data-tab="${k}">${t} <span>${counts[k] || 0}</span></button>`).join("")}</div>
+    ${rows?.length ? `<div class="adm-grid">${rows.map((r) => {
+      const p = byHandle.get(r.handle);
+      const posts = Object.entries(r.posts || {});
+      const live = posts.filter(([, v]) => v && v.url);
+      return `<div class="adm-card">
+        <a href="${signedUrls[r.result_path] || "#"}" target="_blank" rel="noopener"><img src="${signedUrls[r.result_path] || ""}" alt="Shared try-on" loading="lazy"></a>
+        <div class="adm-meta"><b>${esc(p?.title || r.handle)}</b>
+          <small>${new Date(r.created_at).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" })}${r.bonus_granted ? " · got bonus" : ""}${r.reviewed_by ? ` · reviewed by ${esc(r.reviewed_by)}` : ""}</small>
+          ${live.length ? `<small>${live.map(([k, v]) => `<a href="${esc(v.url)}" target="_blank" rel="noopener">${esc(k)}</a>`).join(" · ")}</small>` : ""}
+          ${posts.some(([, v]) => v?.manual_removal) ? `<small class="warn">Couldn't delete automatically: remove it by hand on ${esc(posts.filter(([, v]) => v?.manual_removal).map(([k]) => k).join(", "))}.</small>` : ""}
+          ${r.publish_error ? `<small class="warn">${esc(r.publish_error)}</small>` : ""}
+          ${r.post_image_path ? `<small><a href="${shareMediaUrl(r.post_image_path)}" target="_blank" rel="noopener">Post image</a>${r.caption ? ` · <a href="#" data-copy="${r.id}">Copy caption</a>` : ""}</small>` : ""}
+          <div class="row">
+            ${r.status === "pending" || r.status === "rejected" ? `<button class="btn dark" data-review="${r.id}" data-ok="1">Approve</button>` : ""}
+            ${r.status === "pending" ? `<button class="btn line" data-review="${r.id}" data-ok="0">Reject</button>` : ""}
+            ${r.status === "approved" ? `<button class="btn line" data-review="${r.id}" data-ok="0">Un-approve</button>` : ""}
+            ${r.status === "published" ? `<button class="btn line" data-review="${r.id}" data-ok="0">Take down</button>` : ""}
+          </div></div></div>`;
+    }).join("")}</div>` : `<p class="hint">Nothing here.</p>`}
+    <p class="note left">Signed in as ${esc(session.user.email)} · <a href="#" id="admOut">Sign out</a></p>`;
+  box.querySelectorAll("[data-tab]").forEach((b) => b.onclick = () => { ADM.tab = b.dataset.tab; loadAdmin(); });
+  box.querySelectorAll("[data-review]").forEach((b) => b.onclick = async () => {
+    b.disabled = true;
+    const { data, error } = await sb.rpc("review_share", { p_id: b.dataset.review, p_approve: b.dataset.ok === "1" });
+    if (error || !data) return loadAdmin("That didn't go through. It may have been removed by the customer; refresh and try again.");
+    toast(b.dataset.ok === "1" ? "Approved. It goes up on the next publish run." : "Done");
+    loadAdmin();
+  });
+  box.querySelectorAll("[data-copy]").forEach((a) => a.onclick = async (e) => {
+    e.preventDefault();
+    const r = rows.find((x) => x.id === a.dataset.copy);
+    try { await navigator.clipboard.writeText(r.caption); toast("Caption copied"); } catch { toast("Couldn't copy"); }
+  });
+  $("#admOut").onclick = async (e) => { e.preventDefault(); await sb.auth.signOut(); loadAdmin(); };
+}
+function adminSignIn(err = "", email = "") {
+  const box = $("#adm");
+  box.innerHTML = `<h1 class="page-title">Shared looks</h1>${err ? `<div class="err">${esc(err)}</div>` : ""}
+    <p class="hint">Sign in with your NARTHA team email.</p>
+    <form id="admForm" class="adm-form"><div class="field"><label for="admEm">Email</label><input id="admEm" type="email" required autocomplete="email" value="${esc(email)}"></div>
+    ${email ? `<div class="field"><label for="admCode">Code from the email</label><input id="admCode" class="otp" inputmode="numeric" autocomplete="one-time-code" maxlength="8"></div><p class="note left">Or just tap the link in the email.</p>` : ""}
+    <button class="btn dark">${email ? "Verify" : "Send me a code"}</button></form>`;
+  $("#admForm").onsubmit = async (e) => {
+    e.preventDefault();
+    const sb = await getSb(); const em = $("#admEm").value.trim();
+    if (!email) {
+      sessionStorage.setItem("nartha_after_login", "#/admin");
+      const { error } = await sb.auth.signInWithOtp({ email: em, options: { emailRedirectTo: location.origin + location.pathname, shouldCreateUser: false } });
+      return adminSignIn(error ? (error.message.includes("rate") ? "Too many emails just now. Please wait a minute." : error.message) : "", error ? "" : em);
+    }
+    const { error } = await sb.auth.verifyOtp({ email: em, token: $("#admCode").value.trim(), type: "email" });
+    if (error) return adminSignIn("That code didn't work. Check the latest email.", em);
+    sessionStorage.removeItem("nartha_after_login");
+    loadAdmin();
+  };
+}
 
 /* ---------- boot ---------- */
 (async () => {
