@@ -197,6 +197,19 @@ main{min-height:70vh;outline:none}
 .field label{font-size:12px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-2)}
 .field input{padding:13px 14px;border-radius:10px;border:1px solid var(--line);background:var(--card);font:inherit;font-size:16px}
 .otp{letter-spacing:.5em;text-align:center;font-weight:700}
+.field .opt{font-weight:400;text-transform:none;letter-spacing:0;color:var(--muted)}
+.tel{display:flex;border:1px solid var(--line);border-radius:10px;background:var(--card);overflow:hidden}
+.tel span{display:flex;align-items:center;padding:0 12px;border-right:1px solid var(--line);color:var(--ink-2);font-weight:600;background:var(--paper-2)}
+.tel input{flex:1;min-width:0;border:0;border-radius:0;background:transparent}
+.tel:focus-within{border-color:var(--ink-2)}
+.consent{display:flex;gap:10px;align-items:flex-start;font-size:13px;color:var(--ink-2);margin:2px 0 14px;cursor:pointer;line-height:1.45}
+.consent input{width:18px;height:18px;margin:1px 0 0;flex:none;accent-color:var(--ink)}
+.consent a{text-decoration:underline;white-space:nowrap}
+.cc{margin-top:16px;padding:14px;border-radius:12px;background:var(--paper-2)}
+.cc b{display:block;font-size:15px}
+.cc .hint{margin:2px 0 12px}
+.cc .row{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+#cc .note a{text-decoration:underline}
 .hint{font-size:13px;color:var(--ink-2)}
 .guide{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:14px 0}
 .guide div{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:10px;font-size:12px;text-align:center;color:var(--ink-2)}

@@ -12,6 +12,7 @@ async function getSb() {
     auth: { persistSession: true, detectSessionInUrl: true, flowType: "implicit" },
   });
   _sb.auth.onAuthStateChange((ev) => {
+    if (ev === "SIGNED_IN") setTimeout(flushPendingContact, 0); // details typed before the email link was opened
     const back = sessionStorage.getItem("nartha_after_login");
     if (ev === "SIGNED_IN" && back) {
       sessionStorage.removeItem("nartha_after_login");
@@ -406,9 +407,9 @@ function contact() {
 const TRYON_PRIVACY = {
   title: "Try-on & photo privacy",
   html: `<p>This note explains how the virtual try-on on this website handles your photo. It adds to our main <a href="#/policy/privacy-policy">Privacy policy</a>.</p>
-  <h3>What we collect</h3><ul><li>Your email address, to sign you in with a one-time code.</li><li>The photo you choose, resized to at most 1024 pixels on your device before it is sent.</li><li>A record of each try-on (time, saree, status) so we can apply the weekly limit.</li></ul>
-  <h3>How it's used</h3><ul><li>Your photo and the saree's product photos are sent securely to our image-generation provider (OpenAI) only to create your try-on image.</li><li>The resulting image is stored privately and shown only to you through a time-limited link.</li><li>We don't use your photo for advertising, and we don't share it with anyone else.</li></ul>
-  <h3>Your choices</h3><ul><li>Don't upload photos of other people without their permission, or of anyone under 18.</li><li>To delete your try-on images and account data, email <a href="mailto:info@nartha.in">info@nartha.in</a> from the address you signed in with.</li></ul>
+  <h3>What we collect</h3><ul><li>Your email address, to sign you in with a one-time code.</li><li>Your mobile number, only if you choose to give it.</li><li>Whether you want updates from us, with the date and the exact wording you agreed to.</li><li>The photo you choose, resized to at most 1024 pixels on your device before it is sent.</li><li>A record of each try-on (time, saree, status) so we can apply the weekly limit.</li></ul>
+  <h3>How it's used</h3><ul><li>Your photo and the saree's product photos are sent securely to our image-generation provider (OpenAI) only to create your try-on image.</li><li>The resulting image is stored privately and shown only to you through a time-limited link.</li><li>We don't use your photo for advertising, and we don't share it with anyone else.</li><li>If you tick the updates box, we send new arrivals and offers to your WhatsApp (if you gave a number) and email. If you don't tick it, we use your contact details only for your account and orders. We never sell them.</li></ul>
+  <h3>Your choices</h3><ul><li>Don't upload photos of other people without their permission, or of anyone under 18.</li><li>Turn updates off anytime with "Turn off" in the try-on window, by replying STOP on WhatsApp, or by emailing <a href="mailto:info@nartha.in">info@nartha.in</a>.</li><li>To delete your try-on images and account data, email <a href="mailto:info@nartha.in">info@nartha.in</a> from the address you signed in with.</li></ul>
   <p>Try-on images are AI previews. Handcrafted fabric can vary slightly in colour and print placement.</p>`,
 };
 function policy(handle) {
@@ -458,8 +459,89 @@ function route() {
 window.addEventListener("hashchange", route);
 
 /* ---------- try-on ---------- */
-const T = { handle: null, photo: null, photoUrl: null, email: "" };
+const T = { handle: null, photo: null, photoUrl: null, email: "", draft: {}, contact: undefined };
 const tBody = () => $("#tryonBody");
+
+/* ---------- mobile number + updates consent ----------
+   Stored in Supabase (contacts + consent_log) through the save_contact() function.
+   The checkbox is never pre-ticked, and CONSENT_TEXT is saved word for word with each choice. */
+const CONSENT_TEXT = "Send me new arrivals and offers on WhatsApp and email. I can turn this off anytime.";
+const PENDING_KEY = "nartha_pending_contact";
+const mobileDigits = (v) => { let d = String(v || "").replace(/\D/g, ""); if (/^(91|0)[6-9]\d{9}$/.test(d)) d = d.slice(-10); return d; };
+const validMobile = (d) => /^[6-9]\d{9}$/.test(d);
+function contactFields(d = {}) {
+  return `<div class="field"><label for="mob">Mobile number <span class="opt">optional</span></label>
+      <div class="tel"><span>+91</span><input id="mob" type="tel" inputmode="numeric" autocomplete="tel-national" maxlength="14" placeholder="98765 43210" value="${esc(d.phone || "")}"></div></div>
+    <label class="consent"><input type="checkbox" id="optin"${d.consent ? " checked" : ""}><span>${esc(CONSENT_TEXT)} <a href="#/policy/try-on-privacy" target="_blank" rel="noopener">How we use it</a></span></label>`;
+}
+function readContactFields() {
+  const phone = mobileDigits($("#mob")?.value);
+  return { phone, consent: !!$("#optin")?.checked, ok: !phone || validMobile(phone) };
+}
+async function saveContact({ phone, consent }, source) {
+  const { data, error } = await (await getSb()).rpc("save_contact", {
+    p_phone: phone || null, p_consent: consent, p_consent_text: consent === null ? null : CONSENT_TEXT,
+    p_source: source, p_user_agent: navigator.userAgent,
+  });
+  if (error) throw error;
+  T.contact = data;
+  return data;
+}
+let flushing = null;
+function flushPendingContact() {
+  if (flushing) return flushing;
+  flushing = (async () => {
+    let p = null;
+    try { p = JSON.parse(localStorage.getItem(PENDING_KEY) || "null"); } catch {}
+    if (!p) return;
+    if (Date.now() - (p.at || 0) > 3 * 3600e3) { try { localStorage.removeItem(PENDING_KEY); } catch {} return; } // stale
+    const { data: { session } } = await (await getSb()).auth.getSession();
+    if (!session) return;
+    await saveContact(p, "tryon_signin");
+    try { localStorage.removeItem(PENDING_KEY); } catch {}
+  })().catch(() => {}).finally(() => { flushing = null; });
+  return flushing;
+}
+async function loadContact() {
+  if (T.contact !== undefined) return T.contact;
+  await flushPendingContact();
+  if (T.contact !== undefined) return T.contact;
+  const { data, error } = await (await getSb()).from("contacts").select("phone,marketing_consent").maybeSingle();
+  if (!error) T.contact = data; // null = never asked
+  return T.contact ?? null;
+}
+// Small card under the try-on: asks once if we have nothing, otherwise shows the current choice with an off/on switch.
+function renderContactCard(err = "") {
+  const box = $("#cc"); if (!box) return;
+  const c = T.contact;
+  const editing = box.dataset.edit === "1" || (c === null && sessionStorage.getItem("nartha_contact_skip") !== "1");
+  if (editing) {
+    box.innerHTML = `<div class="cc">${err ? `<div class="err">${esc(err)}</div>` : ""}
+      <b>${c ? "Get updates" : "Stay in the loop"}</b><p class="hint">New weaves and offers, a few times a month.</p>
+      ${contactFields({ phone: c?.phone ? c.phone.slice(3) : T.draft.phone, consent: false })}
+      <div class="row"><button class="btn dark" id="ccSave">Save</button><button class="btn line" id="ccSkip">${c ? "Cancel" : "Not now"}</button></div></div>`;
+    $("#ccSave").onclick = async () => {
+      const f = readContactFields();
+      if (!f.ok) return renderContactCard("Please enter a 10-digit Indian mobile number, or leave it empty.");
+      $("#ccSave").disabled = true;
+      try { await saveContact(f, c ? "tryon_settings" : "tryon_prompt"); box.dataset.edit = ""; renderContactCard(); }
+      catch { renderContactCard("We couldn't save that. Please try again."); }
+    };
+    $("#ccSkip").onclick = () => { if (!c) sessionStorage.setItem("nartha_contact_skip", "1"); box.dataset.edit = ""; renderContactCard(); };
+    return;
+  }
+  if (!c) { box.innerHTML = ""; return; }
+  const num = c.phone ? ` · +91 ${c.phone.slice(3, 8)} ${c.phone.slice(8)}` : "";
+  box.innerHTML = c.marketing_consent
+    ? `<p class="note">WhatsApp &amp; email updates are on${esc(num)} · <a href="#" id="ccOff">Turn off</a></p>`
+    : `<p class="note"><a href="#" id="ccOn">Get new arrivals on WhatsApp &amp; email</a></p>`;
+  $("#ccOff") && ($("#ccOff").onclick = async (e) => {
+    e.preventDefault();
+    try { await saveContact({ phone: null, consent: false }, "tryon_settings"); renderContactCard(); toast("Updates turned off"); }
+    catch { toast("Couldn't update. Please try again."); }
+  });
+  $("#ccOn") && ($("#ccOn").onclick = (e) => { e.preventDefault(); box.dataset.edit = "1"; renderContactCard(); });
+}
 
 async function fn(payload) {
   const { data: { session } } = await (await getSb()).auth.getSession();
@@ -493,9 +575,14 @@ function stepSignIn(err = "") {
     ${err ? `<div class="err">${esc(err)}</div>` : ""}
     <p class="hint">Sign in with your email to use try-on. You get <b>${CONFIG.weeklyLimit} free try-ons every week</b>, and your photos stay private to your account.</p>
     <form id="emailForm"><div class="field"><label for="em">Email</label><input id="em" type="email" required autocomplete="email" placeholder="you@example.com" value="${esc(T.email)}"></div>
+    ${contactFields(T.draft)}
     <button class="btn dark block">Send me a code</button></form>`;
   $("#emailForm").onsubmit = async (e) => {
     e.preventDefault(); T.email = $("#em").value.trim();
+    const f = readContactFields(); T.draft = f;
+    if (!f.ok) return stepSignIn("Please enter a 10-digit Indian mobile number, or leave it empty.");
+    // Kept until sign-in finishes (code or email link, even in a new tab), then saved by flushPendingContact().
+    try { localStorage.setItem(PENDING_KEY, JSON.stringify({ phone: f.phone, consent: f.consent, at: Date.now() })); } catch {}
     e.submitter && (e.submitter.disabled = true);
     sessionStorage.setItem("nartha_after_login", `#/p/${encodeURIComponent(T.handle)}?try`);
     const { error } = await (await getSb()).auth.signInWithOtp({ email: T.email, options: { emailRedirectTo: location.origin + location.pathname } });
@@ -516,6 +603,7 @@ function stepCode(err = "") {
     const { error } = await (await getSb()).auth.verifyOtp({ email: T.email, token: $("#code").value.trim(), type: "email" });
     if (error) return stepCode("That code didn't work. Check the latest email and try again.");
     sessionStorage.removeItem("nartha_after_login");
+    await flushPendingContact();
     stepPhoto();
   };
 }
@@ -540,7 +628,9 @@ async function stepPhoto(err = "") {
       <div class="drop"><b>Add your photo</b><span class="hint">Fitted clothes work best. One person only.</span>
         <div class="row"><label class="btn dark"><input type="file" accept="image/*" capture="environment" hidden id="cam">Take photo</label>
         <label class="btn line"><input type="file" accept="image/*" hidden id="file">Upload</label></div></div>`}
-    <p class="note">Results are AI previews; actual colours and drape can vary slightly. Your photo is used only to make your try-on.</p>`;
+    <p class="note">Results are AI previews; actual colours and drape can vary slightly. Your photo is used only to make your try-on.</p>
+    <div id="cc"></div>`;
+  loadContact().then(() => renderContactCard()).catch(() => {});
   const pick = async (e) => {
     const f = e.target.files?.[0]; if (!f) return;
     try { T.photo = await shrink(f); T.photoUrl = "data:image/jpeg;base64," + T.photo; stepPhoto(); }

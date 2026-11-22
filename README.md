@@ -22,6 +22,13 @@ A custom front end for [nartha.in](https://www.nartha.in). Products come from th
 
 Each try-on sends the customer photo + the product's two images (model shot and the body/pallu/blouse detail collage).
 
+## Customer contacts and consent
+- The try-on sign-in asks for email, an optional mobile number (+91) and an **unticked** checkbox: "Send me new arrivals and offers on WhatsApp and email. I can turn this off anytime."
+- Signed-in customers who were never asked see a one-time "Stay in the loop" card; everyone sees an on/off link under the try-on.
+- Data lives in Supabase: `contacts` (current state per customer) and `consent_log` (every opt-in/opt-out with time, wording and source). Writes go only through `save_contact()`; customers can read only their own rows. Schema: `supabase/migrations/20261122000000_contacts_consent.sql`.
+- Mobile numbers are **not verified** (`phone_verified = false`).
+- Export opted-in customers (SQL editor): `select email, phone, consent_channels, consent_at from contacts where marketing_consent order by consent_at desc;`
+
 ## Supabase secrets (Dashboard → Edge Functions → Secrets)
 - `OPENAI_API_KEY` — required
 - `OPENAI_IMAGE_MODEL` — default `gpt-image-1`; set to the newest GPT Image model
